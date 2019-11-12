@@ -55,6 +55,13 @@
     text-align: left;
     vertical-align: top;
   }
+  .command-text-container {
+    text-align:left;
+  }
+  .command-text {
+    text-align:left;
+    margin-bottom:10px;
+  }
   #headline {
     font-size: 40px;
     font-weight: 300;
@@ -110,6 +117,16 @@
     <button id="start_button" class="button" onclick="startButton(event)">Start</button>
     <button id="send_text" class="button" onclick="sendText()">
       Send to Robot</button>
+    <button id="send_text" class="button" onclick="clearState()">
+      Clear State</button>
+  </div>
+  <div class="command-text" >
+    <div>Current Command:</div>
+    <div id="command_text_current"></div>
+  </div>
+  <div class="command-text">
+    <div>Command History:</div>
+    <div id="command_text_history"></div>
   </div>
 
   <p>
@@ -271,12 +288,21 @@ if (!('webkitSpeechRecognition' in window)) {
         interim_transcript += event.results[i][0].transcript;
       }
     }
+    var heyRobotIndex = final_transcript.indexOf('hey robot');
+    var pleaseIndex = final_transcript.indexOf('please', heyRobotIndex);
+    if (heyRobotIndex > -1 && pleaseIndex > -1) {
+      var commandText = final_transcript.substr(heyRobotIndex, (pleaseIndex - heyRobotIndex) + 6);
+      console.log('Got command! Text: ' + commandText);
+      document.getElementById('command_text_current').innerHTML = commandText;
+      var now = new Date()
+      document.getElementById('command_text_history').innerHTML = now.getTime().toString() + '      ' + commandText + '<br>' + document.getElementById('command_text_history').innerHTML;
+      sendText(commandText);
+    }
     final_transcript = capitalize(final_transcript);
+    
     final_span.innerHTML = linebreak(final_transcript);
     interim_span.innerHTML = linebreak(interim_transcript);
-    // if (final_transcript || interim_transcript) {
-    //   showButtons('inline-block');
-    // }
+
   };
 }
 
@@ -296,13 +322,35 @@ function capitalize(s) {
   return s.replace(first_char, function(m) { return m.toUpperCase(); });
 }
 
-function sendText() {
-  var userEnteredSpeech = document.getElementById('final_span').innerHTML;
+function clearState() {
+  console.log('Clearing state.');
+  document.getElementById('interim_span').innerHTML = '';
+  document.getElementById('final_span').innerHTML = '';
+  document.getElementById('command_text_current').innerHTML = '';
+  final_transcript = '';
+  interim_transcript = '';
+}
+
+function clearStateAndRestartListening() {
+  clearState();
+  recognition.start();
+}
+
+function sendText(textToSend) {
+  var userEnteredSpeech = textToSend;
+  if (!userEnteredSpeech) {
+    console.log('Got text after button push from HTML in page. (Wake word logic did not give this text).')
+    userEnteredSpeech = document.getElementById('final_span').innerHTML;
+  } 
+
   var encodedSpeech = encodeURI(userEnteredSpeech);
   var xhr = new XMLHttpRequest();
   xhr.open('GET', '/send-text?text=' + encodedSpeech, true);
   xhr.send();
-  alert('Sent ' + userEnteredSpeech + ' to robot.');
+
+  //locks you out for two seconds
+  recognition.stop();
+  setTimeout(clearStateAndRestartListening, 2000);
 }
 
 function startButton(event) {

@@ -12,10 +12,12 @@ app.get('/send-text', function (req, res) {
     console.log("Received:" + JSON.stringify(req.query));
     console.log('Raw query text was: ' + req.query.text);
     decodedText = decodeURI(req.query.text) + '\n';
+    var d = new Date();
+    lineToWrite = d.getTime() + '|' + decodedText + '\n';
 
-    fs.writeFile('data/robot_commands_asr.txt', decodedText, (err) => {
+    fs.writeFile('data/robot_commands_asr.txt', lineToWrite, (err) => {
         if (err) throw err;
-        console.log('Successfully saved decoded text to file: ' + decodedText);
+        console.log('Successfully saved decoded text to file: ' + lineToWrite);
     });
     res.end();
 })
