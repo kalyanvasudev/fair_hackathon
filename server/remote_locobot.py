@@ -243,7 +243,11 @@ class RemoteLoCoRobot(object):
         ]
         print("Arm is Dancing")
         steps = 300
+        t = threading.currentThread()
+
         for i in range(0, steps):
+            if getattr(t, "stop_dance", False):
+                return
             joint = target_joints[0];
 
             if i > steps * 0.8:
@@ -258,53 +262,48 @@ class RemoteLoCoRobot(object):
 
             self._robot.arm.set_joint_positions(joint, plan=False, wait=False)
             sleep(0.05)
+
+        self._robot.arm.move_to_neutral()
         print("Arm Dance Complete")
 
     @Pyro4.oneway
     def base_dance(self):
         print("Base is Dancing")
         print("Max Vel ", self._robot.base.configs.BASE.MAX_ABS_TURN_SPEED)
-        self._robot.base.set_vel(0, 5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, -5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, -5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, 5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, 5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, -5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, -5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, 5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, 5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, -5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, -5, 1)
-        self._robot.base.set_vel(0, 0, .5)
-        self._robot.base.set_vel(0, 5, 1)
-        self._robot.base.set_vel(0, 0, .5)
+        t = threading.currentThread()
+        for i in range(0, 4):
+            self._robot.base.set_vel(0, 5, 1)
+            if getattr(t, "stop_dance", False):
+                return
+            self._robot.base.set_vel(0, 0, .5)
+            if getattr(t, "stop_dance", False):
+                return
+            self._robot.base.set_vel(0, -5, 1)
+            if getattr(t, "stop_dance", False):
+                return
+            self._robot.base.set_vel(0, 0, .5)
+            if getattr(t, "stop_dance", False):
+                return
         print("Base Dance Complete")
+
+    @Pyro4.oneway
+    def stop_dance(self):
+        if (self.arm_dancer and self.base_dancer):
+            self.arm_dancer.stop_dance = True;
+            self.base_dancer.stop_dance = True;
+
+            self.arm_dancer.join()
+            self.base_dancer.join()
 
     @Pyro4.oneway
     def dance(self):
         self._robot.arm.go_home()
 
-        arm_dancer = threading.Thread(target=self.arm_dance, args=())
-        base_dancer = threading.Thread(target=self.base_dance, args=())
+        self.arm_dancer = threading.Thread(target=self.arm_dance, args=())
+        self.base_dancer = threading.Thread(target=self.base_dance, args=())
 
-        arm_dancer.start()
-        base_dancer.start()
-
-        arm_dancer.join()
-        base_dancer.join()
-
-        self._robot.arm.move_to_neutral()
-
+        self.arm_dancer.start()
+        self.base_dancer.start()
 
 with Pyro4.Daemon(MYIP) as daemon:
     robot = RemoteLoCoRobot()
